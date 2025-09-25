@@ -1,0 +1,182 @@
+version: '3.8'
+
+services:
+  # Aplicação principal
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bitcoin_mining_app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://bitcoin_mining:password@postgres:5432/bitcoin_mining
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - LLM_MODE=local
+      - LLM_ENDPOINT=http://ollama:11434
+      - ABB_HOST=192.168.0.10
+      - ABB_PORT=502
+      - BLE_INTERFACE=/dev/ttyUSB0
+      - F2POOL_API_TOKEN=${F2POOL_API_TOKEN}
+      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+    volumes:
+      - ./backend:/app
+      - /dev/ttyUSB0:/dev/ttyUSB0:ro
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+    networks:
+      - bitcoin_mining_network
+
+  # Banco de dados PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: bitcoin_mining_postgres
+    environment:
+      - POSTGRES_DB=bitcoin_mining
+      - POSTGRES_USER=bitcoin_mining
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backup:/backup
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - bitcoin_mining_network
+
+  # Redis para cache
+  redis:
+    image: redis:7-alpine
+    container_name: bitcoin_mining_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - bitcoin_mining_network
+
+  # RabbitMQ para message queue
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: bitcoin_mining_rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+    networks:
+      - bitcoin_mining_network
+
+  # Prometheus para monitoramento
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: bitcoin_mining_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - bitcoin_mining_network
+
+  # Grafana para visualização
+  grafana:
+    image: grafana/grafana:latest
+    container_name: bitcoin_mining_grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    restart: unless-stopped
+    networks:
+      - bitcoin_mining_network
+
+  # Ollama para LLM local
+  ollama:
+    image: ollama/ollama:latest
+    container_name: bitcoin_mining_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    restart: unless-stopped
+    networks:
+      - bitcoin_mining_network
+
+  # Nginx para proxy reverso
+  nginx:
+    image: nginx:alpine
+    container_name: bitcoin_mining_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - bitcoin_mining_network
+
+  # Frontend (se implementado)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bitcoin_mining_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_WS_URL=ws://localhost:8000
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - bitcoin_mining_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:
+  ollama_data:
+
+networks:
+  bitcoin_mining_network:
+    driver: bridge
+
+

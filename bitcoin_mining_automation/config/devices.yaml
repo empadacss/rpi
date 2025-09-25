@@ -1,0 +1,203 @@
+# Configuração de dispositivos para o sistema de automação de mineração
+
+# Configuração do inversor ABB
+abb:
+  host: "192.168.0.10"
+  port: 502
+  slave_id: 1
+  timeout: 30
+  retry_attempts: 3
+  registers:
+    voltage: 0
+    current: 2
+    power: 4
+    frequency: 6
+    energy: 8
+    status: 10
+
+# Configuração de sensores BLE
+ble:
+  interface: "/dev/ttyUSB0"
+  baudrate: 9600
+  timeout: 5
+  retry_attempts: 3
+  devices:
+    - id: "sensor_01"
+      name: "Sensor de Temperatura 1"
+      type: "temperature"
+    - id: "sensor_02"
+      name: "Sensor de Umidade 1"
+      type: "humidity"
+    - id: "sensor_03"
+      name: "Sensor de Pressão 1"
+      type: "pressure"
+
+# Configuração dos ASICs
+asic:
+  hashcore_path: "/usr/local/bin/hashcore"
+  timeout: 30
+  retry_attempts: 3
+  discovery_interval: 60
+  miners:
+    - ip: "192.168.0.100"
+      model: "Antminer S19"
+      name: "Minerador 1"
+    - ip: "192.168.0.101"
+      model: "Antminer S19"
+      name: "Minerador 2"
+    - ip: "192.168.0.102"
+      model: "Antminer S19"
+      name: "Minerador 3"
+
+# Configuração de sensores de temperatura
+sensors:
+  temperature:
+    min: -40
+    max: 125
+    critical: 85
+    warning: 80
+    units: "celsius"
+  humidity:
+    min: 0
+    max: 100
+    critical: 90
+    warning: 80
+    units: "percent"
+  pressure:
+    min: 800
+    max: 1200
+    critical: 1100
+    warning: 1050
+    units: "hPa"
+
+# Configuração de refrigeração
+cooling:
+  enabled: true
+  type: "exhaust_fans"
+  fans:
+    - id: "fan_01"
+      name: "Exaustor Principal"
+      gpio_pin: 18
+      min_speed: 30
+      max_speed: 100
+    - id: "fan_02"
+      name: "Exaustor Secundário"
+      gpio_pin: 19
+      min_speed: 30
+      max_speed: 100
+  temperature_thresholds:
+    activate: 75
+    deactivate: 70
+    critical: 85
+
+# Configuração de rede
+network:
+  discovery:
+    enabled: true
+    subnet: "192.168.0.0/24"
+    timeout: 5
+  monitoring:
+    ping_interval: 30
+    connection_timeout: 10
+    retry_attempts: 3
+
+# Configuração de pools de mineração
+pools:
+  f2pool:
+    enabled: true
+    api_url: "https://api.f2pool.com"
+    api_token: "${F2POOL_API_TOKEN}"
+    worker_name: "bitcoin_mining"
+    update_interval: 60
+  slush_pool:
+    enabled: false
+    api_url: "https://slushpool.com"
+    api_token: "${SLUSH_POOL_TOKEN}"
+    worker_name: "bitcoin_mining"
+    update_interval: 60
+
+# Configuração de alertas
+alerts:
+  email:
+    enabled: true
+    smtp_host: "${SMTP_HOST}"
+    smtp_port: 587
+    smtp_user: "${SMTP_USER}"
+    smtp_pass: "${SMTP_PASS}"
+    recipients:
+      - "admin@example.com"
+      - "alerts@example.com"
+  whatsapp:
+    enabled: true
+    api_token: "${WHATSAPP_TOKEN}"
+    phone_numbers:
+      - "+5511999999999"
+  telegram:
+    enabled: true
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    chat_ids:
+      - "-1001234567890"
+  sms:
+    enabled: false
+    provider: "twilio"
+    account_sid: "${TWILIO_ACCOUNT_SID}"
+    auth_token: "${TWILIO_AUTH_TOKEN}"
+    phone_numbers:
+      - "+5511999999999"
+
+# Configuração de automação
+automation:
+  enabled: true
+  check_interval: 10
+  rules:
+    - name: "temperatura_critica"
+      enabled: true
+      condition: "temperature > temp_critical"
+      action: "sleep_asics"
+      cooldown: 600
+    - name: "temperatura_alta"
+      enabled: true
+      condition: "temperature > temp_max"
+      action: "increase_fan_speed"
+      cooldown: 300
+    - name: "eficiencia_baixa"
+      enabled: true
+      condition: "efficiency < efficiency_min"
+      action: "optimize_settings"
+      cooldown: 1800
+    - name: "minerador_desconectado"
+      enabled: true
+      condition: "miner_status == 'offline'"
+      action: "send_alert"
+      cooldown: 60
+
+# Configuração de backup
+backup:
+  enabled: true
+  interval: 3600  # segundos
+  retention_days: 30
+  destination: "/opt/bitcoin_mining/backup"
+  include_logs: true
+  include_database: true
+  compression: true
+
+# Configuração de logs
+logging:
+  level: "INFO"
+  file: "/opt/bitcoin_mining/logs/bitcoin_mining.log"
+  max_size: "10MB"
+  backup_count: 5
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  console: true
+  file: true
+
+# Configuração de performance
+performance:
+  max_workers: 10
+  queue_size: 1000
+  batch_size: 100
+  cache_ttl: 300
+  connection_pool_size: 20
+  timeout: 30
+
+
