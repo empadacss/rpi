@@ -1,0 +1,6 @@
+aiohttp
+bleak
+openai
+pymodbus
+pyyaml
+requests
