@@ -110,12 +110,36 @@ if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" 
         apt-get install -y python3.12 python3.12-dev python3.12-venv python3.12-distutils
         update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
     else
-        # Para outras versões, tentar PPA
-        apt-get install -y software-properties-common
-        add-apt-repository ppa:deadsnakes/ppa -y
-        apt-get update
-        apt-get install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
-        update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+        # Para outras versões, tratar por arquitetura
+        case "$ARCH" in
+            amd64|x86_64)
+                log "Arquitetura $ARCH compatível com o PPA deadsnakes - instalando Python 3.11"
+                apt-get install -y software-properties-common
+                add-apt-repository ppa:deadsnakes/ppa -y
+                apt-get update
+                apt-get install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
+                update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+                ;;
+            armv7l|aarch64)
+                warn "Arquitetura $ARCH não possui Python >=3.11 nos repositórios oficiais do Ubuntu"
+                log "Instalando pacotes Python padrão do Ubuntu"
+                apt-get install -y python3 python3-dev python3-venv
+                if apt-cache show python3.10 >/dev/null 2>&1; then
+                    log "Pacote python3.10 disponível - instalando suporte opcional"
+                    apt-get install -y python3.10 python3.10-dev python3.10-venv
+                else
+                    warn "Pacote python3.10 não encontrado - mantendo versão padrão do Python"
+                fi
+                ;;
+            *)
+                warn "Arquitetura $ARCH não testada - tentando instalar Python 3.11 via PPA"
+                apt-get install -y software-properties-common
+                add-apt-repository ppa:deadsnakes/ppa -y
+                apt-get update
+                apt-get install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
+                update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+                ;;
+        esac
     fi
 else
     log "Python $PYTHON_VERSION já instalado e compatível"
