@@ -10,7 +10,7 @@
 - **Teclado e mouse** (para configuração inicial)
 
 ### Software
-- **Ubuntu 20.04+** ou **Ubuntu 22.04+** para Raspberry Pi
+- **Ubuntu 20.04+**, **Ubuntu 22.04+**, **Ubuntu 24.04+** ou **Ubuntu 25.x** para Raspberry Pi
 - **Conexão com internet** estável
 - **Acesso SSH** (opcional, mas recomendado)
 
@@ -20,8 +20,10 @@
 
 #### 1.1 Instalar Ubuntu
 1. Baixe a imagem do Ubuntu para Raspberry Pi:
+   - [Ubuntu 24.04 LTS](https://ubuntu.com/download/raspberry-pi)
    - [Ubuntu 22.04 LTS](https://ubuntu.com/download/raspberry-pi)
    - [Ubuntu 20.04 LTS](https://ubuntu.com/download/raspberry-pi)
+   - [Ubuntu 25.x (Daily Builds)](https://cdimage.ubuntu.com/releases/)
 
 2. Grave a imagem no microSD usando:
    - **Raspberry Pi Imager** (recomendado)

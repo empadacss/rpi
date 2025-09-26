@@ -48,6 +48,10 @@ fi
 
 log "Arquitetura detectada: $ARCH"
 
+# Determinar usuário alvo
+TARGET_USER=${SUDO_USER:-$(id -un)}
+log "Usuário alvo para instalação: $TARGET_USER"
+
 # Atualizar sistema
 log "Atualizando sistema..."
 apt-get update
@@ -72,14 +76,75 @@ apt-get install -y \
     cmake \
     pkg-config
 
-# Instalar Python 3.11 e dependências
-log "Instalando Python 3.11 e dependências..."
-apt-get install -y \
-    python3.11 \
-    python3.11-dev \
-    python3.11-venv \
-    python3-pip \
-    python3.11-distutils
+# Função para comparar versões
+version_ge() {
+    if command -v dpkg &> /dev/null; then
+        dpkg --compare-versions "$1" ge "$2"
+        return $?
+    fi
+
+    local IFS=.
+    local i ver1=($1) ver2=($2)
+    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++)); do
+        ver1[i]=0
+    done
+    for ((i=${#ver2[@]}; i<${#ver1[@]}; i++)); do
+        ver2[i]=0
+    done
+    for ((i=0; i<${#ver1[@]}; i++)); do
+        if ((10#${ver1[i]} > 10#${ver2[i]})); then
+            return 0
+        elif ((10#${ver1[i]} < 10#${ver2[i]})); then
+            return 1
+        fi
+    done
+    return 0
+}
+
+# Garantir Python 3.11+ e dependências
+log "Verificando versão do Python..."
+REQUIRED_PYTHON_VERSION="3.11"
+CURRENT_PYTHON_VERSION="0"
+if command -v python3 &> /dev/null; then
+    CURRENT_PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+fi
+
+if command -v python3 &> /dev/null && version_ge "$CURRENT_PYTHON_VERSION" "$REQUIRED_PYTHON_VERSION"; then
+    log "Python $CURRENT_PYTHON_VERSION já instalado e compatível"
+else
+    log "Instalando Python compatível..."
+    PYTHON_INSTALLED=false
+    for candidate in 3.13 3.12 3.11; do
+        if apt-cache show "python${candidate}" &> /dev/null; then
+            log "Instalando python${candidate} e dependências"
+            apt-get install -y "python${candidate}" "python${candidate}-dev" "python${candidate}-venv"
+            if apt-cache show "python${candidate}-distutils" &> /dev/null; then
+                apt-get install -y "python${candidate}-distutils"
+            fi
+            update-alternatives --install /usr/bin/python3 python3 "/usr/bin/python${candidate}" 1
+            PYTHON_INSTALLED=true
+            break
+        fi
+    done
+
+    if [ "$PYTHON_INSTALLED" = false ]; then
+        warn "Não foi possível localizar pacotes python3.12 ou python3.11. Usando pacotes genéricos."
+        apt-get install -y python3 python3-dev python3-venv
+    fi
+
+    CURRENT_PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+    log "Python atualizado para $CURRENT_PYTHON_VERSION"
+fi
+
+# Garantir pacotes adicionais do Python
+PYTHON_ADDITIONAL_PACKAGES=(python3-pip python3-distutils)
+for pkg in "${PYTHON_ADDITIONAL_PACKAGES[@]}"; do
+    if apt-cache show "$pkg" &> /dev/null; then
+        apt-get install -y "$pkg"
+    else
+        warn "Pacote $pkg não disponível para esta distribuição"
+    fi
+done
 
 # Instalar dependências para Modbus
 log "Instalando dependências para Modbus..."
@@ -124,7 +189,7 @@ sh get-docker.sh
 rm get-docker.sh
 
 # Adicionar usuário ao grupo docker
-usermod -aG docker $SUDO_USER
+usermod -aG docker "$TARGET_USER"
 
 # Instalar Docker Compose
 log "Instalando Docker Compose..."
@@ -147,14 +212,14 @@ mkdir -p /opt/bitcoin_mining/reports
 mkdir -p /opt/bitcoin_mining/logs_csv
 
 # Configurar permissões
-chown -R $SUDO_USER:$SUDO_USER /opt/bitcoin_mining
+chown -R "$TARGET_USER":"$TARGET_USER" /opt/bitcoin_mining
 
 # Instalar dependências Python específicas
 log "Instalando dependências Python específicas..."
 cd /opt/bitcoin_mining
 
 # Criar ambiente virtual
-python3.11 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 
 # Instalar dependências Python
@@ -240,8 +305,8 @@ WorkingDirectory=/opt/bitcoin_mining
 ExecStart=/usr/local/bin/docker-compose up -d
 ExecStop=/usr/local/bin/docker-compose down
 TimeoutStartSec=0
-User=$SUDO_USER
-Group=$SUDO_USER
+User=$TARGET_USER
+Group=$TARGET_USER
 
 [Install]
 WantedBy=multi-user.target
@@ -255,8 +320,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=$SUDO_USER
-Group=$SUDO_USER
+User=$TARGET_USER
+Group=$TARGET_USER
 WorkingDirectory=/opt/bitcoin_mining
 Environment=PATH=/opt/bitcoin_mining/.venv/bin
 ExecStart=/opt/bitcoin_mining/.venv/bin/python main.py
@@ -468,7 +533,7 @@ echo "Data: $(date)"
 echo
 
 echo "=== Verificação de Dependências ==="
-echo "Python 3.11: $(python3.11 --version 2>/dev/null || echo 'NÃO INSTALADO')"
+echo "Python 3: $(python3 --version 2>/dev/null || echo 'NÃO INSTALADO')"
 echo "Docker: $(docker --version 2>/dev/null || echo 'NÃO INSTALADO')"
 echo "Docker Compose: $(docker-compose --version 2>/dev/null || echo 'NÃO INSTALADO')"
 echo "HashCore: $(hashcore --version 2>/dev/null || echo 'NÃO INSTALADO')"

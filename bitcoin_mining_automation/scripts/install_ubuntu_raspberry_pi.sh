@@ -2,12 +2,12 @@
 
 # Script de instalação para Raspberry Pi com Ubuntu
 # Sistema de Automação para Mineração de Bitcoin
-# Compatível com Ubuntu 20.04+ e Ubuntu 22.04+
+# Compatível com Ubuntu 20.04+, 22.04+, 24.04+ e 25.x
 
 set -e
 
 echo "🚀 Instalando Sistema de Automação para Mineração de Bitcoin no Raspberry Pi (Ubuntu)"
-echo "Versão: Ubuntu 20.04+ / 22.04+"
+echo "Versão: Ubuntu 20.04+ / 22.04+ / 24.04+ / 25.x"
 echo "Arquitetura: ARM64/ARMHF"
 
 # Cores para output
@@ -63,6 +63,10 @@ if [[ "$ARCH" != "aarch64" && "$ARCH" != "armv7l" ]]; then
     warn "Arquitetura não detectada como ARM. Continuando mesmo assim..."
 fi
 
+# Determinar usuário alvo para permissões e serviços
+TARGET_USER=${SUDO_USER:-$(id -un)}
+log "Usuário alvo para instalação: $TARGET_USER"
+
 # Atualizar sistema
 log "Atualizando sistema Ubuntu..."
 apt-get update
@@ -93,33 +97,93 @@ apt-get install -y \
     python3-pil \
     python3-pil.imagetk
 
-# Instalar Python 3.11+ (se não estiver disponível)
-log "Verificando versão do Python..."
-PYTHON_VERSION=$(python3 --version 2>&1 | cut -d' ' -f2 | cut -d'.' -f1,2)
-PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d'.' -f1)
-PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f2)
-
-if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 8 ]); then
-    log "Instalando Python 3.11+..."
-    
-    # Verificar versão do Ubuntu
-    UBUNTU_VERSION=$(lsb_release -rs)
-    if [[ "$UBUNTU_VERSION" == "24.04" ]] || [[ "$UBUNTU_VERSION" == "25.04" ]]; then
-        log "Ubuntu $UBUNTU_VERSION detectado - usando Python padrão do sistema"
-        # Ubuntu 24.04+ já vem com Python 3.12+, que é compatível
-        apt-get install -y python3.12 python3.12-dev python3.12-venv python3.12-distutils
-        update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
-    else
-        # Para outras versões, tentar PPA
-        apt-get install -y software-properties-common
-        add-apt-repository ppa:deadsnakes/ppa -y
-        apt-get update
-        apt-get install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
-        update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+# Função para comparar versões (utiliza dpkg se disponível)
+version_ge() {
+    if command -v dpkg &> /dev/null; then
+        dpkg --compare-versions "$1" ge "$2"
+        return $?
     fi
-else
-    log "Python $PYTHON_VERSION já instalado e compatível"
+
+    # Fallback simples: compara partes numéricas
+    local IFS=.
+    local i ver1=($1) ver2=($2)
+    # preenche com zeros para o mesmo tamanho
+    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++)); do
+        ver1[i]=0
+    done
+    for ((i=${#ver2[@]}; i<${#ver1[@]}; i++)); do
+        ver2[i]=0
+    done
+    for ((i=0; i<${#ver1[@]}; i++)); do
+        if ((10#${ver1[i]} > 10#${ver2[i]})); then
+            return 0
+        elif ((10#${ver1[i]} < 10#${ver2[i]})); then
+            return 1
+        fi
+    done
+    return 0
+}
+
+# Instalar Python 3.11+ (se necessário)
+REQUIRED_PYTHON_VERSION="3.11"
+CURRENT_PYTHON_VERSION="0"
+if command -v python3 &> /dev/null; then
+    CURRENT_PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
 fi
+
+if command -v python3 &> /dev/null && version_ge "$CURRENT_PYTHON_VERSION" "$REQUIRED_PYTHON_VERSION"; then
+    log "Python $CURRENT_PYTHON_VERSION já instalado e compatível"
+else
+    log "Python compatível não encontrado. Instalando dependências..."
+    case "$UBUNTU_VERSION" in
+        20.04|20.10|21.*|22.*)
+            log "Ubuntu $UBUNTU_VERSION detectado - utilizando PPA deadsnakes para Python 3.11"
+            apt-get install -y software-properties-common
+            add-apt-repository ppa:deadsnakes/ppa -y
+            apt-get update
+            apt-get install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
+            update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+            ;;
+        24.*|25.*)
+            log "Ubuntu $UBUNTU_VERSION detectado - utilizando Python nativo (3.12+)"
+            PYTHON_NATIVE_INSTALLED=false
+            for candidate in 3.13 3.12; do
+                if apt-cache show "python${candidate}" &> /dev/null; then
+                    apt-get install -y "python${candidate}" "python${candidate}-dev" "python${candidate}-venv"
+                    if apt-cache show "python${candidate}-distutils" &> /dev/null; then
+                        apt-get install -y "python${candidate}-distutils"
+                    fi
+                    update-alternatives --install /usr/bin/python3 python3 "/usr/bin/python${candidate}" 1
+                    PYTHON_NATIVE_INSTALLED=true
+                    break
+                fi
+            done
+            if [ "$PYTHON_NATIVE_INSTALLED" = false ]; then
+                warn "Pacotes python3.12+ não disponíveis nos repositórios. Usando python3 padrão."
+                apt-get install -y python3 python3-dev python3-venv
+            else
+                log "Python nativo instalado com sucesso"
+            fi
+            ;;
+        *)
+            warn "Versão do Ubuntu não reconhecida. Tentando instalar Python 3 padrão."
+            apt-get install -y python3 python3-dev python3-venv
+            ;;
+    esac
+    CURRENT_PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+    log "Python atualizado para $CURRENT_PYTHON_VERSION"
+fi
+
+# Garantir pacotes essenciais do Python
+log "Garantindo pacotes Python essenciais..."
+PYTHON_COMMON_PACKAGES=(python3 python3-dev python3-venv python3-pip python3-distutils)
+for pkg in "${PYTHON_COMMON_PACKAGES[@]}"; do
+    if apt-cache show "$pkg" &> /dev/null; then
+        apt-get install -y "$pkg"
+    else
+        warn "Pacote $pkg não disponível para esta versão do Ubuntu"
+    fi
+done
 
 # Instalar dependências para Modbus
 log "Instalando dependências para Modbus..."
@@ -182,7 +246,7 @@ sh get-docker.sh
 rm get-docker.sh
 
 # Adicionar usuário ao grupo docker
-usermod -aG docker $SUDO_USER
+usermod -aG docker "$TARGET_USER"
 
 # Instalar Docker Compose
 log "Instalando Docker Compose..."
@@ -197,7 +261,7 @@ docker-compose --version
 
 # Instalar Node.js (para frontend)
 log "Instalando Node.js..."
-curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
 apt-get install -y nodejs
 
 # Instalar Yarn
@@ -214,7 +278,7 @@ mkdir -p /opt/bitcoin_mining/reports
 mkdir -p /opt/bitcoin_mining/logs_csv
 
 # Configurar permissões
-chown -R $SUDO_USER:$SUDO_USER /opt/bitcoin_mining
+chown -R "$TARGET_USER":"$TARGET_USER" /opt/bitcoin_mining
 
 # Instalar dependências Python específicas
 log "Instalando dependências Python específicas..."
@@ -310,8 +374,8 @@ WorkingDirectory=/opt/bitcoin_mining
 ExecStart=/usr/local/bin/docker-compose up -d
 ExecStop=/usr/local/bin/docker-compose down
 TimeoutStartSec=0
-User=$SUDO_USER
-Group=$SUDO_USER
+User=$TARGET_USER
+Group=$TARGET_USER
 
 [Install]
 WantedBy=multi-user.target
@@ -325,8 +389,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=$SUDO_USER
-Group=$SUDO_USER
+User=$TARGET_USER
+Group=$TARGET_USER
 WorkingDirectory=/opt/bitcoin_mining
 Environment=PATH=/opt/bitcoin_mining/.venv/bin
 ExecStart=/opt/bitcoin_mining/.venv/bin/python main.py
@@ -403,7 +467,7 @@ systemctl enable bluetooth
 systemctl start bluetooth
 
 # Configurar permissões para Bluetooth
-usermod -aG bluetooth $SUDO_USER
+usermod -aG bluetooth "$TARGET_USER"
 
 # Criar script de backup aprimorado
 log "Criando script de backup aprimorado..."
