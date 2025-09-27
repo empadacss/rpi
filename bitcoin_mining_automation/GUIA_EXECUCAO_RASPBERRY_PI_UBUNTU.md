@@ -14,6 +14,41 @@
 - **Conexão com internet** estável
 - **Acesso SSH** (opcional, mas recomendado)
 
+## ⚡ Passos rápidos (copiar e colar)
+
+Se você já está com o Ubuntu configurado e quer apenas executar a stack via Docker, abaixo está um resumo com os principais comandos (ajuste o nome de usuário quando necessário):
+
+```bash
+# 1. Atualizar pacotes
+sudo apt update && sudo apt upgrade -y
+
+# 2. Instalar dependências
+sudo apt install -y git docker.io docker-compose python3 python3-pip
+
+# 3. Habilitar e iniciar Docker
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# 4. Clonar repositório em /opt
+cd /opt
+sudo git clone https://github.com/empadacss/rpi.git
+sudo chown -R $USER:$USER rpi
+cd rpi/bitcoin_mining_automation
+
+# 5. Configurar variáveis de ambiente
+cp .env.example .env
+nano .env
+
+# 6. Subir containers
+docker compose up -d
+
+# 7. Verificar status e logs do backend
+docker compose ps
+docker compose logs -f app
+```
+
+> 💡 Caso encontre `permission denied` ao usar `docker compose`, execute `sudo usermod -aG docker $USER`, saia e entre novamente na sessão (ou use `newgrp docker`).
+
 ## 🚀 Instalação Passo a Passo
 
 ### 1. Preparar o Raspberry Pi
@@ -89,6 +124,8 @@ ls -la /opt/bitcoin_mining
 /opt/bitcoin_mining/diagnose.sh
 ```
 
+> ℹ️ O script sincroniza automaticamente o conteúdo do repositório (incluindo `docker-compose.yml`, `backend/` e `.env.example`) para `/opt/bitcoin_mining`. Todas as alterações e comandos subsequentes devem ser feitos nesse diretório para evitar erros de “arquivo inexistente”.
+
 ### 3. Configurar o Sistema
 
 #### 3.1 Configurar Variáveis de Ambiente
@@ -153,6 +190,8 @@ docker compose ps
 # docker compose --profile frontend up -d  # Disponível após adicionar o código do frontend
 ```
 
+> ℹ️ Se aparecer `permission denied` ao acessar `/var/run/docker.sock`, adicione o usuário ao grupo Docker com `sudo usermod -aG docker $USER` e faça logout/login ou use `newgrp docker`.
+
 #### 4.2 Opção B: Python Direto
 ```bash
 # Ativar ambiente virtual
@@ -194,12 +233,17 @@ sudo systemctl enable bitcoin-mining-python.service
 
 #### 5.3 Verificar Logs
 ```bash
-# Logs em tempo real
-tail -f logs/bitcoin_mining.log
+# Logs de todos os serviços (via Docker)
+docker compose logs -f
 
-# Logs de erro
-tail -f logs/errors.log
+# Logs apenas do backend (serviço app)
+docker compose logs -f app
+
+# Logs apenas do banco de dados
+docker compose logs -f postgres
 ```
+
+> 📂 Os serviços gravam logs na saída padrão dos containers. Para salvar em arquivos locais, redirecione, por exemplo: `docker compose logs -f app > app.log 2>&1`, ou configure volumes específicos no `docker-compose.yml`.
 
 ## 🔧 Configuração Avançada
 

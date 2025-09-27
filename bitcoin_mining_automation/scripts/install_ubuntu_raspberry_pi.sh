@@ -79,6 +79,7 @@ apt-get install -y \
     curl \
     wget \
     git \
+    rsync \
     vim \
     htop \
     tree \
@@ -293,6 +294,38 @@ mkdir -p /opt/bitcoin_mining/backup
 mkdir -p /opt/bitcoin_mining/config
 mkdir -p /opt/bitcoin_mining/reports
 mkdir -p /opt/bitcoin_mining/logs_csv
+
+# Copiar código do repositório ou baixar pacote oficial
+log "Atualizando conteúdo em /opt/bitcoin_mining..."
+SOURCE_DIR="$(pwd)"
+OFFICIAL_PACKAGE_URL="${OFFICIAL_PACKAGE_URL:-https://github.com/centralos/bitcoin_mining_automation/archive/refs/heads/main.tar.gz}"
+
+if [ -f "$SOURCE_DIR/docker-compose.yml" ] && [ -d "$SOURCE_DIR/backend" ] && [ -f "$SOURCE_DIR/.env.example" ]; then
+    log "Copiando arquivos do repositório atual para /opt/bitcoin_mining"
+    rsync -a --delete --exclude '.git' --exclude '.venv' --exclude 'node_modules' "$SOURCE_DIR/" /opt/bitcoin_mining/
+else
+    warn "Repositório atual não contém os arquivos esperados. Baixando pacote oficial..."
+    TEMP_DIR="$(mktemp -d)"
+    if curl -fsSL "$OFFICIAL_PACKAGE_URL" -o "$TEMP_DIR/package.tar.gz"; then
+        tar -xzf "$TEMP_DIR/package.tar.gz" -C "$TEMP_DIR"
+        SOURCE_EXTRACT=$(find "$TEMP_DIR" -maxdepth 1 -mindepth 1 -type d | head -n 1)
+        if [ -n "$SOURCE_EXTRACT" ]; then
+            rsync -a --delete "$SOURCE_EXTRACT/" /opt/bitcoin_mining/
+        else
+            rm -rf "$TEMP_DIR"
+            error "Falha ao localizar diretório dentro do pacote oficial."
+        fi
+    else
+        rm -rf "$TEMP_DIR"
+        error "Não foi possível baixar o pacote oficial a partir de $OFFICIAL_PACKAGE_URL."
+    fi
+    rm -rf "$TEMP_DIR"
+fi
+
+# Validar arquivos essenciais
+if [ ! -f "/opt/bitcoin_mining/docker-compose.yml" ] || [ ! -d "/opt/bitcoin_mining/backend" ] || [ ! -f "/opt/bitcoin_mining/.env.example" ]; then
+    error "Arquivos essenciais não encontrados em /opt/bitcoin_mining. Verifique a origem do repositório."
+fi
 
 # Configurar permissões
 chown -R "$TARGET_USER":"$TARGET_USER" /opt/bitcoin_mining
