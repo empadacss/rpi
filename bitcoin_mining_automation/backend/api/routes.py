@@ -91,13 +91,15 @@ async def get_system_status(system_manager = Depends(get_system_manager)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/health")
-async def health_check():
-    """Verificar saúde da API"""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0"
-    }
+async def health_check(system_manager = Depends(get_system_manager)):
+    """Verificar saúde geral da API e dos serviços de backend."""
+    try:
+        summary = await system_manager.get_health_summary()
+        summary["version"] = "1.0.0"
+        return summary
+    except Exception as e:
+        logger.error(f"❌ Erro no health check: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Rotas de dados de mineração
 @router.get("/mining/data", response_model=MiningDataResponse)
@@ -514,17 +516,23 @@ async def get_metrics(system_manager = Depends(get_system_manager)):
 async def get_monitoring_health(system_manager = Depends(get_system_manager)):
     """Obter saúde do monitoramento"""
     try:
+        rabbitmq_ok = await system_manager.check_rabbitmq_health()
+
+        services = {
+            "database": "healthy",
+            "redis": "healthy",
+            "rabbitmq": "healthy" if rabbitmq_ok else "unhealthy",
+            "collectors": "healthy"
+        }
+
+        overall_status = "healthy" if all(value == "healthy" for value in services.values()) else "degraded"
+
         return {
-            "status": "healthy",
-            "services": {
-                "database": "healthy",
-                "redis": "healthy",
-                "rabbitmq": "healthy",
-                "collectors": "healthy"
-            },
+            "status": overall_status,
+            "services": services,
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"❌ Erro ao obter saúde do monitoramento: {e}")
         raise HTTPException(status_code=500, detail=str(e))

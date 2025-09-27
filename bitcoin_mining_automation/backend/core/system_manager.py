@@ -21,6 +21,7 @@ from core.automation.scheduler import Scheduler
 from core.persistence.database import DatabaseManager
 from core.persistence.report_generator import ReportGenerator
 from core.notifications.notification_manager import NotificationManager
+from core.messaging import RabbitMQClient
 from core.websocket import WebSocketManager
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,9 @@ class SystemManager:
             
             # Gerenciador de notificações
             self.managers['notifications'] = NotificationManager(self.config)
+
+            # Gerenciador de mensageria
+            self.managers['rabbitmq'] = RabbitMQClient(self.config.rabbitmq_url)
             
             # Gerenciador de ASICs
             self.managers['asic'] = ASICManager(self.config)
@@ -190,11 +194,11 @@ class SystemManager:
         """Obter status do sistema"""
         try:
             uptime = (datetime.now() - self.start_time).total_seconds()
-            
+
             # Obter dados dos coletores
-            active_collectors = sum(1 for collector in self.collectors.values() 
+            active_collectors = sum(1 for collector in self.collectors.values()
                                   if hasattr(collector, 'is_active') and collector.is_active())
-            
+
             # Obter dados dos ASICs
             asic_manager = self.managers['asic']
             total_miners = await asic_manager.get_total_miners()
@@ -233,7 +237,74 @@ class SystemManager:
                 total_power=0,
                 avg_temperature=0
             )
-    
+
+    async def check_rabbitmq_health(self) -> bool:
+        """Verificar a saúde da conexão com RabbitMQ."""
+        client = self.managers.get('rabbitmq')
+        if not client or not hasattr(client, 'health_check'):
+            return False
+
+        return await client.health_check()
+
+    async def get_health_summary(self) -> Dict[str, Any]:
+        """Construir um resumo consolidado de saúde do sistema."""
+        status = await self.get_status()
+
+        collectors_status = {
+            name: collector.is_active() if hasattr(collector, 'is_active') else True
+            for name, collector in self.collectors.items()
+        }
+        collectors_ok = all(collectors_status.values()) if collectors_status else True
+
+        rabbitmq_ok = await self.check_rabbitmq_health()
+
+        database_manager = self.managers.get('database')
+        if database_manager and hasattr(database_manager, 'is_connected'):
+            database_ok = database_manager.is_connected()
+        else:
+            database_ok = False
+
+        notification_manager = self.managers.get('notifications')
+        if notification_manager and hasattr(notification_manager, 'is_active'):
+            notifications_ok = notification_manager.is_active()
+        else:
+            notifications_ok = True
+
+        managers_status = {
+            'rabbitmq': rabbitmq_ok,
+            'database': database_ok,
+            'notifications': notifications_ok,
+        }
+
+        core_ok = collectors_ok and all(managers_status.values())
+        degraded = (
+            not core_ok
+            and (
+                status.active_collectors > 0
+                or any(value for value in managers_status.values())
+            )
+        )
+
+        overall_status = 'healthy' if core_ok else ('degraded' if degraded else 'unhealthy')
+
+        return {
+            'status': overall_status,
+            'timestamp': status.timestamp.isoformat(),
+            'uptime_seconds': status.uptime,
+            'metrics': {
+                'active_collectors': status.active_collectors,
+                'alerts_count': status.alerts_count,
+                'total_hashrate': status.total_hashrate,
+                'total_power': status.total_power,
+                'avg_temperature': status.avg_temperature,
+                'efficiency': status.efficiency,
+            },
+            'components': {
+                'collectors': collectors_status,
+                'managers': managers_status,
+            },
+        }
+
     async def get_realtime_data(self) -> Dict[str, Any]:
         """Obter dados em tempo real"""
         try:
