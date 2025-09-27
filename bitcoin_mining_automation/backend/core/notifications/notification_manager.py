@@ -83,8 +83,9 @@ class NotificationManager:
         """Inicializar gerenciador"""
         try:
             logger.info("📢 Inicializando gerenciador de notificações")
+            self.running = True
             logger.info("✅ Gerenciador de notificações inicializado com sucesso")
-            
+
         except Exception as e:
             logger.error(f"❌ Erro ao inicializar gerenciador: {e}")
             raise

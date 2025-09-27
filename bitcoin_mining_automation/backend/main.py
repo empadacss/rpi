@@ -109,15 +109,13 @@ async def websocket_endpoint(websocket):
 async def health_check():
     """Verificar saúde do sistema"""
     if system_manager:
-        status = await system_manager.get_status()
-        return {
-            "status": "healthy",
-            "timestamp": status.get("timestamp"),
-            "active_collectors": status.get("active_collectors", 0),
-            "total_miners": status.get("total_miners", 0),
-            "system_uptime": status.get("uptime", 0)
-        }
-    return {"status": "unhealthy"}
+        summary = await system_manager.get_health_summary()
+        summary.setdefault("version", app.version)
+        return summary
+    return {
+        "status": "unhealthy",
+        "message": "Sistema não inicializado",
+    }
 
 # Endpoint para dados em tempo real
 @app.get("/api/v1/realtime")

@@ -105,6 +105,24 @@ python scripts/test_raspberry_pi.py  # Testar sistema (Raspberry Pi)
 - **Prometheus**: http://seu-ip:9090
 - **RabbitMQ**: http://seu-ip:15672
 
+### 🖥️ CentralOS GUI (Tkinter)
+
+Uma interface desktop inspirada no `centralos2.py` original está disponível no arquivo `centralos_gui.py`. Ela consome a API do backend modular e replica as abas de Elétrico, Ambiente, F2Pool, ASICs e Controles em fullscreen.
+
+```bash
+# Instalar dependências opcionais da GUI (fora do container Docker)
+python3 -m pip install -r frontend/requirements-gui.txt
+
+# Executar o painel (API precisa estar rodando em http://localhost:8000)
+python3 centralos_gui.py
+```
+
+Variáveis de ambiente opcionais:
+
+- `CENTRALOS_API_BASE`: URL base da API (padrão `http://localhost:8000/api/v1`).
+- `CENTRALOS_REFRESH`: intervalo de atualização em segundos (padrão `5`).
+- `CENTRALOS_THEME`: tema ttkbootstrap (ex.: `darkly`, `flatly`, `cosmo`).
+
 ## 📚 Documentação
 
 ### Guias Detalhados

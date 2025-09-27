@@ -147,9 +147,10 @@ class DatabaseManager:
             
             # Criar tabelas
             Base.metadata.create_all(bind=self.engine)
-            
+
+            self.running = True
             logger.info("✅ Banco de dados inicializado com sucesso")
-            
+
         except Exception as e:
             logger.error(f"❌ Erro ao inicializar banco de dados: {e}")
             raise
@@ -404,10 +405,14 @@ class DatabaseManager:
                 session.commit()
                 
                 logger.info(f"✅ Dados antigos removidos: ABB={abb_count}, BLE={ble_count}, ASIC={asic_count}, Pool={pool_count}, Status={status_count}")
-                
+
         except Exception as e:
             logger.error(f"❌ Erro ao limpar dados antigos: {e}")
-    
+
+    def is_connected(self) -> bool:
+        """Indica se o gerenciador está pronto para atender requisições."""
+        return self.running and self.engine is not None
+
     async def backup_database(self, backup_path: str) -> bool:
         """Fazer backup do banco de dados"""
         try:
