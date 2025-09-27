@@ -21,6 +21,7 @@ from core.automation.scheduler import Scheduler
 from core.persistence.database import DatabaseManager
 from core.persistence.report_generator import ReportGenerator
 from core.notifications.notification_manager import NotificationManager
+from core.messaging import RabbitMQClient
 from core.websocket import WebSocketManager
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,20 @@ class SystemStatus:
     total_hashrate: float
     total_power: float
     avg_temperature: float
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Converter o status em dicionário serializável."""
+        return {
+            "timestamp": self.timestamp.isoformat(),
+            "active_collectors": self.active_collectors,
+            "total_miners": self.total_miners,
+            "uptime": self.uptime,
+            "alerts_count": self.alerts_count,
+            "efficiency": self.efficiency,
+            "total_hashrate": self.total_hashrate,
+            "total_power": self.total_power,
+            "avg_temperature": self.avg_temperature,
+        }
 
 class SystemManager:
     """Gerenciador principal do sistema"""
@@ -65,6 +80,9 @@ class SystemManager:
             
             # Gerenciador de notificações
             self.managers['notifications'] = NotificationManager(self.config)
+
+            # Gerenciador de mensageria
+            self.managers['rabbitmq'] = RabbitMQClient(self.config.rabbitmq_url)
             
             # Gerenciador de ASICs
             self.managers['asic'] = ASICManager(self.config)
@@ -190,11 +208,11 @@ class SystemManager:
         """Obter status do sistema"""
         try:
             uptime = (datetime.now() - self.start_time).total_seconds()
-            
+
             # Obter dados dos coletores
-            active_collectors = sum(1 for collector in self.collectors.values() 
+            active_collectors = sum(1 for collector in self.collectors.values()
                                   if hasattr(collector, 'is_active') and collector.is_active())
-            
+
             # Obter dados dos ASICs
             asic_manager = self.managers['asic']
             total_miners = await asic_manager.get_total_miners()
@@ -233,7 +251,15 @@ class SystemManager:
                 total_power=0,
                 avg_temperature=0
             )
-    
+
+    async def check_rabbitmq_health(self) -> bool:
+        """Verificar a saúde da conexão com RabbitMQ."""
+        client = self.managers.get('rabbitmq')
+        if not client or not hasattr(client, 'health_check'):
+            return False
+
+        return await client.health_check()
+
     async def get_realtime_data(self) -> Dict[str, Any]:
         """Obter dados em tempo real"""
         try:
