@@ -76,7 +76,16 @@ detect_arch() {
 detect_distro
 detect_arch
 
+DISTRO_CODENAME=""
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    DISTRO_CODENAME=${VERSION_CODENAME:-$UBUNTU_CODENAME}
+fi
+
 log "Distribuição detectada: $DISTRO $VERSION"
+if [ -n "$DISTRO_CODENAME" ]; then
+    log "Codinome detectado: $DISTRO_CODENAME"
+fi
 log "Arquitetura detectada: $ARCH"
 
 # Verificar se a distribuição é suportada
@@ -381,8 +390,15 @@ install_nodejs() {
     
     case $DISTRO in
         ubuntu|debian)
-            curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-            apt-get install -y nodejs
+            NODE_MAJOR=20
+            if [ -n "$DISTRO_CODENAME" ] && curl -fsI "https://deb.nodesource.com/node_${NODE_MAJOR}.x/dists/${DISTRO_CODENAME}/Release" >/dev/null 2>&1; then
+                log "Distribuição suportada pela NodeSource. Instalando Node.js ${NODE_MAJOR}.x"
+                curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
+                apt-get install -y nodejs
+            else
+                warn "NodeSource não suporta ${DISTRO_CODENAME:-esta distribuição} na série ${NODE_MAJOR}.x. Instalando nodejs/npm do repositório padrão"
+                apt-get install -y nodejs npm
+            fi
             ;;
         centos|rhel|fedora)
             curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
@@ -394,7 +410,11 @@ install_nodejs() {
     esac
     
     # Instalar Yarn
-    npm install -g yarn
+    if command -v npm &> /dev/null; then
+        npm install -g yarn
+    else
+        warn "npm não encontrado; Yarn não será instalado automaticamente"
+    fi
 }
 
 # Criar diretórios

@@ -13,8 +13,8 @@ services:
       - DATABASE_URL=postgresql://bitcoin_mining:password@postgres:5432/bitcoin_mining
       - REDIS_URL=redis://redis:6379
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - LLM_MODE=local
-      - LLM_ENDPOINT=http://ollama:11434
+      - LLM_MODE=${LLM_MODE:-disabled}
+      - LLM_ENDPOINT=${LLM_ENDPOINT:-http://ollama:11434}
       - ABB_HOST=192.168.0.10
       - ABB_PORT=502
       - BLE_INTERFACE=/dev/ttyUSB0
@@ -120,7 +120,7 @@ services:
     networks:
       - bitcoin_mining_network
 
-  # Ollama para LLM local
+  # Ollama para LLM local (opcional, apenas amd64)
   ollama:
     image: ollama/ollama:latest
     container_name: bitcoin_mining_ollama
@@ -133,6 +133,8 @@ services:
     restart: unless-stopped
     networks:
       - bitcoin_mining_network
+    profiles:
+      - ollama
 
   # Nginx para proxy reverso
   nginx:
@@ -166,6 +168,8 @@ services:
     restart: unless-stopped
     networks:
       - bitcoin_mining_network
+    profiles:
+      - frontend
 
 volumes:
   postgres_data:

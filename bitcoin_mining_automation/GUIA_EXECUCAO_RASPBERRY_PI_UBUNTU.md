@@ -143,10 +143,14 @@ asics:
 cd /opt/bitcoin_mining
 
 # Iniciar com Docker
-docker-compose up -d
+docker compose up -d
 
 # Verificar status
-docker-compose ps
+docker compose ps
+
+# (Opcional) Habilitar serviços adicionais
+# docker compose --profile ollama up -d    # Requer imagem amd64 do Ollama
+# docker compose --profile frontend up -d  # Disponível após adicionar o código do frontend
 ```
 
 #### 4.2 Opção B: Python Direto
