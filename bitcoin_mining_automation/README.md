@@ -18,6 +18,8 @@ chmod +x install_ubuntu_raspberry_pi.sh
 sudo ./install_ubuntu_raspberry_pi.sh
 ```
 
+> 🔁 **Ubuntu 25.04 (Plucky Puffin)**: antes de rodar o instalador, garanta que nenhum PPA `deadsnakes` permaneça configurado (`sudo add-apt-repository -r ppa:deadsnakes/ppa || true` e `sudo rm -f /etc/apt/sources.list.d/deadsnakes-ubuntu-ppa-*.list`). Em seguida, siga o roteiro completo descrito em [docs/UBUNTU_ARM_COMPATIBILITY.md](../docs/UBUNTU_ARM_COMPATIBILITY.md) para copiar e colar os comandos prontos.
+
 ### Para Raspberry Pi com Raspbian
 ```bash
 # Baixar e executar instalação

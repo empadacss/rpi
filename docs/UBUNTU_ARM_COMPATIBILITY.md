@@ -8,7 +8,7 @@ Os scripts `install_linux.sh` e `quick_start_linux.sh` tratam da instalação un
 
 ## Avaliação de Compatibilidade Ubuntu ARM
 
-1. **Scripts de instalação** – O instalador dedicado ao Ubuntu ARM remove PPAs problemáticos (como o `deadsnakes` em 25.04), executa `apt update` com tratamento de falhas, instala dependências (incluindo `rsync`) e sincroniza o conteúdo do repositório para `/opt/bitcoin_mining`, garantindo que `docker-compose.yml`, `env.example` e demais artefatos fiquem disponíveis logo após a execução.【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L1-L118】【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L215-L286】
+1. **Scripts de instalação** – O instalador dedicado ao Ubuntu ARM remove PPAs problemáticos (como o `deadsnakes` em 25.04), executa `apt update` com tratamento de falhas, instala dependências (incluindo `rsync`) e sincroniza o conteúdo do repositório para `/opt/bitcoin_mining`, garantindo que `docker-compose.yml`, `env.example` e demais artefatos fiquem disponíveis logo após a execução. O repositório também oferece o utilitário `scripts/fix_ubuntu_25_ppa.sh` para limpar instalações que tenham seguido guias antigos.【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L1-L118】【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L215-L286】【F:bitcoin_mining_automation/scripts/fix_ubuntu_25_ppa.sh†L1-L171】
 2. **Backend/Docker** – O backend usa base `python:3.11-slim`, disponível em ARM, e instala bibliotecas Python compatíveis. O `docker-compose.yml` define `LLM_MODE` como desabilitado por padrão e expõe o serviço Ollama atrás de um profile opcional, evitando a tentativa de baixar imagens somente `amd64` em ARM.【F:bitcoin_mining_automation/docker-compose.yml†L1-L118】
 3. **Frontend opcional** – O `docker-compose.yml` coloca o serviço `frontend` sob um profile específico. Assim, a execução padrão (`docker compose up`) funciona sem depender de um diretório inexistente, mantendo a possibilidade de habilitar o componente quando o código estiver disponível.【F:bitcoin_mining_automation/docker-compose.yml†L119-L146】
 4. **HashCore Toolkit** – O backend e os scripts esperam o binário `hashcore` em `/usr/local/bin`. O guia de execução para Ubuntu ARM fornece um pacote `.deb` específico (`hashcore-toolkit_1.0.0_arm64.deb`); se o pacote não estiver disponível para a arquitetura utilizada, deve-se instalar via `pip install hashcore-toolkit`, sujeito à disponibilidade de wheels ARM.【F:bitcoin_mining_automation/GUIA_EXECUCAO_RASPBERRY_PI_UBUNTU.md†L249-L320】【F:bitcoin_mining_automation/backend/core/data_collectors/asic_collector.py†L28-L336】
@@ -17,34 +17,38 @@ Os scripts `install_linux.sh` e `quick_start_linux.sh` tratam da instalação un
 
 ### Conclusão de Compatibilidade
 
-- ✅ **Ubuntu ARM 20.04+ (incluindo 25.04)** é suportado pelos scripts e documentação do repositório.
+- ✅ **Ubuntu ARM 25.04 (Plucky Puffin)** é totalmente suportado pelos scripts e documentação do repositório, mantendo compatibilidade retroativa com 20.04, 22.04 e 24.04.
 - ⚠️ **Serviço Ollama** continua opcional; habilite apenas se houver suporte à arquitetura e imagem disponível.
 - ⚠️ **Serviço frontend** permanece opcional; forneça o código antes de habilitar o profile correspondente.
 - ⚠️ **HashCore Toolkit** requer verificação manual para garantir a disponibilidade de pacotes/wheels ARM.
 
 ## Passo a Passo para Instalação no Ubuntu ARM
 
-### Ubuntu 24.04 / 25.04 (Python 3.12+ nativo)
+### Ubuntu 25.04 (Plucky Puffin) – sequência pronta para copiar e colar
 
 ```bash
+# 0. Remover o PPA deadsnakes caso tenha sido adicionado anteriormente
+sudo add-apt-repository -r ppa:deadsnakes/ppa || true
+sudo rm -f /etc/apt/sources.list.d/deadsnakes-ubuntu-ppa-*.list
+
 # 1. Atualizar o sistema
 sudo apt update && sudo apt upgrade -y
 
-# 2. Instalar dependências básicas
+# 2. Instalar dependências básicas já compatíveis com Python 3.12+
 sudo apt install -y curl wget git vim htop tree unzip \
     software-properties-common apt-transport-https ca-certificates gnupg lsb-release \
     build-essential cmake pkg-config python3 python3-dev python3-pip python3-venv \
     python3-tk python3-pil python3-pil.imagetk libmodbus-dev libffi-dev libssl-dev \
     bluez bluez-tools bluetooth rsync
 
-# 3. Clonar o repositório atualizado (ajuste a URL para o fork/organização corretos)
+# 3. Clonar o repositório atualizado (ajuste a URL para o seu fork)
 export RPI_REPO_URL="https://github.com/<SEU_USUARIO>/rpi.git"
 cd /opt
 sudo git clone "$RPI_REPO_URL"
 sudo chown -R $USER:$USER rpi
 cd rpi/bitcoin_mining_automation
 
-# 4. Executar o instalador dedicado para Ubuntu ARM (sincroniza o código para /opt/bitcoin_mining)
+# 4. Executar o instalador dedicado para Ubuntu ARM (sincroniza /opt/bitcoin_mining)
 chmod +x scripts/install_ubuntu_raspberry_pi.sh
 sudo scripts/install_ubuntu_raspberry_pi.sh
 
@@ -69,14 +73,20 @@ sudo apt install -y docker-compose-plugin
 # 9. Subir apenas os serviços suportados em ARM
 docker compose up -d postgres redis rabbitmq prometheus grafana app
 
-# 10. (Opcional) Habilitar serviços extras quando a arquitetura permitir
-# docker compose --profile ollama up -d    # Requer imagem com suporte ARM
-# docker compose --profile frontend up -d  # Disponível após adicionar o código do frontend
+# 10. (Opcional) Habilitar serviços extras quando houver suporte ARM
+# docker compose --profile ollama up -d
+# docker compose --profile frontend up -d
 
-# 11. Verificar status e logs
+# 11. Verificar status e acompanhar logs
 docker compose ps
 docker compose logs -f app
 ```
+
+> ❗ Se `apt update` ainda falhar por causa do PPA `deadsnakes`, execute `cd /opt/rpi/bitcoin_mining_automation/scripts && sudo ./fix_ubuntu_25_ppa.sh` (ajuste o caminho conforme o local do repositório) e tente novamente.
+
+### Ubuntu 24.04 LTS (Noble) – fluxo semelhante
+
+O fluxo para o Ubuntu 24.04 é idêntico ao acima, dispensando PPA externo para Python. Basta substituir o passo 0 por um `sudo apt update && sudo apt upgrade -y` direto se nunca adicionou o PPA `deadsnakes`.
 
 ### Ubuntu 20.04 / 22.04 (necessita Python 3.11 via PPA)
 

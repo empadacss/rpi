@@ -20,7 +20,7 @@
 
 #### 1.1 Instalar Ubuntu
 1. Baixe a imagem do Ubuntu para Raspberry Pi:
-   - [Ubuntu 25.04 (Lunar Lobster)](https://cdimage.ubuntu.com/releases/25.04/release/)
+   - [Ubuntu 25.04 (Plucky Puffin)](https://cdimage.ubuntu.com/releases/25.04/release/)
    - [Ubuntu 24.04 LTS](https://ubuntu.com/download/raspberry-pi)
    - [Ubuntu 22.04 LTS](https://ubuntu.com/download/raspberry-pi)
    - [Ubuntu 20.04 LTS](https://ubuntu.com/download/raspberry-pi)
@@ -43,6 +43,14 @@
    - **Senha**: ubuntu (será solicitada para alterar)
 
 #### 1.3 Configuração Inicial
+> 💡 **Dica para Ubuntu 25.04**: se você seguiu instruções antigas que adicionavam o PPA `deadsnakes`, remova-o antes de continu
+ar:
+> ```bash
+> sudo add-apt-repository -r ppa:deadsnakes/ppa || true
+> sudo rm -f /etc/apt/sources.list.d/deadsnakes-ubuntu-ppa-*.list
+> sudo apt update
+> ```
+
 ```bash
 # Atualizar sistema
 sudo apt update && sudo apt upgrade -y
@@ -82,6 +90,9 @@ cd rpi/bitcoin_mining_automation
 chmod +x scripts/install_ubuntu_raspberry_pi.sh
 sudo scripts/install_ubuntu_raspberry_pi.sh
 ```
+
+> 📌 Se o `apt update` falhar reclamando do PPA `deadsnakes` em hosts Ubuntu 25.04, execute `sudo ./scripts/fix_ubuntu_25_ppa.sh`
+ e reinicie o instalador.
 
 **⏱️ Tempo estimado**: 15-30 minutos (inclui fallback automático para Node.js em caso de Ubuntu 25.04)
 

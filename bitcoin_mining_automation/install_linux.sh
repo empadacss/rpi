@@ -37,6 +37,29 @@ info() {
     echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')] INFO: $1${NC}"
 }
 
+cleanup_deadsnakes_ppa() {
+    if [ "$DISTRO" != "ubuntu" ] && [ "$DISTRO" != "debian" ]; then
+        return
+    fi
+
+    local removed=0
+    if ls /etc/apt/sources.list.d/deadsnakes-ubuntu-ppa* >/dev/null 2>&1; then
+        warn "Removendo entradas antigas do PPA deadsnakes que causam erro 404"
+        rm -f /etc/apt/sources.list.d/deadsnakes-ubuntu-ppa* || true
+        removed=1
+    fi
+
+    if ls /etc/apt/sources.list.d/*deadsnakes* >/dev/null 2>&1; then
+        warn "Limpando referências residuais ao PPA deadsnakes"
+        rm -f /etc/apt/sources.list.d/*deadsnakes* || true
+        removed=1
+    fi
+
+    if [ "$removed" -eq 1 ] && command -v add-apt-repository >/dev/null 2>&1; then
+        add-apt-repository --remove ppa:deadsnakes/ppa -y >/dev/null 2>&1 || true
+    fi
+}
+
 # Verificar se está rodando como root
 if [ "$EUID" -ne 0 ]; then
     error "Por favor, execute como root (sudo ./install_linux.sh)"
@@ -104,7 +127,12 @@ install_basic_dependencies() {
     
     case $DISTRO in
         ubuntu|debian)
-            apt-get update
+            cleanup_deadsnakes_ppa
+            if ! apt-get update; then
+                warn "apt-get update falhou; tentando novamente após limpar PPAs do deadsnakes"
+                cleanup_deadsnakes_ppa
+                apt-get update || warn "apt-get update ainda retornou erro; verifique sua conexão ou listas de repositório"
+            fi
             apt-get install -y \
                 curl \
                 wget \
