@@ -24,10 +24,10 @@ class Config(BaseSettings):
     rabbitmq_url: str = Field(default="amqp://localhost:5672", env="RABBITMQ_URL")
     
     # Configurações de LLM
-    llm_mode: str = Field(default="local", env="LLM_MODE")  # local ou remote
+    llm_mode: str = Field(default="disabled", env="LLM_MODE")  # disabled, local ou remote
     openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
     anthropic_api_key: Optional[str] = Field(default=None, env="ANTHROPIC_API_KEY")
-    llm_endpoint: str = Field(default="http://localhost:11434", env="LLM_ENDPOINT")
+    llm_endpoint: Optional[str] = Field(default="http://localhost:11434", env="LLM_ENDPOINT")
     
     # Configurações de dispositivos
     abb_host: str = Field(default="192.168.0.10", env="ABB_HOST")
@@ -163,9 +163,11 @@ class Config(BaseSettings):
     
     def is_llm_configured(self) -> bool:
         """Verificar se LLM está configurado"""
+        if self.llm_mode == "disabled":
+            return False
         if self.llm_mode == "local":
-            return True
-        elif self.llm_mode == "remote":
+            return bool(self.llm_endpoint)
+        if self.llm_mode == "remote":
             return bool(self.openai_api_key or self.anthropic_api_key)
         return False
     
@@ -203,7 +205,7 @@ class Config(BaseSettings):
             errors.append("REDIS_URL deve ser uma URL válida do Redis")
         
         # Validar configurações de LLM
-        if not self.is_llm_configured():
+        if self.llm_mode != "disabled" and not self.is_llm_configured():
             errors.append("LLM não está configurado corretamente")
         
         # Validar thresholds

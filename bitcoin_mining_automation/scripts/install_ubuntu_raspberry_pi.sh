@@ -49,7 +49,8 @@ fi
 
 # Verificar versão do Ubuntu
 UBUNTU_VERSION=$(lsb_release -rs)
-log "Versão do Ubuntu detectada: $UBUNTU_VERSION"
+UBUNTU_CODENAME=$(lsb_release -cs)
+log "Versão do Ubuntu detectada: $UBUNTU_VERSION ($UBUNTU_CODENAME)"
 
 if [[ "$UBUNTU_VERSION" < "20.04" ]]; then
     error "Ubuntu 20.04+ é necessário. Versão atual: $UBUNTU_VERSION"
@@ -261,11 +262,27 @@ docker-compose --version
 
 # Instalar Node.js (para frontend)
 log "Instalando Node.js..."
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt-get install -y nodejs
+if command -v node &> /dev/null; then
+    log "Node.js já instalado (versão $(node --version))"
+else
+    NODE_MAJOR=20
+    NODESOURCE_RELEASE_URL="https://deb.nodesource.com/node_${NODE_MAJOR}.x/dists/${UBUNTU_CODENAME}/Release"
+    if curl -fsI "$NODESOURCE_RELEASE_URL" >/dev/null 2>&1; then
+        log "Distribuição suportada pela NodeSource. Instalando Node.js ${NODE_MAJOR}.x via repositório oficial"
+        curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
+        apt-get install -y nodejs
+    else
+        warn "NodeSource ainda não suporta o codinome ${UBUNTU_CODENAME}. Utilizando pacotes do Ubuntu"
+        apt-get install -y nodejs npm
+    fi
+fi
 
-# Instalar Yarn
-npm install -g yarn
+# Instalar Yarn (se npm estiver disponível)
+if command -v npm &> /dev/null; then
+    npm install -g yarn
+else
+    warn "npm não encontrado; Yarn não será instalado automaticamente"
+fi
 
 # Criar diretórios
 log "Criando diretórios..."

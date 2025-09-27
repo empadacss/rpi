@@ -24,11 +24,9 @@ pymodbus==3.5.2
 # ASIC Control
 hashcore-toolkit==1.0.0
 
-# Machine Learning & AI
+# Machine Learning & AI (instalação básica)
 openai==1.3.7
 anthropic==0.7.8
-transformers==4.36.2
-torch==2.1.1
 scikit-learn==1.3.2
 numpy==1.24.4
 pandas==2.1.4
