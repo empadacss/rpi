@@ -108,16 +108,20 @@ async def websocket_endpoint(websocket):
 @app.get("/health")
 async def health_check():
     """Verificar saúde do sistema"""
-    if system_manager:
-        status = await system_manager.get_status()
-        return {
-            "status": "healthy",
-            "timestamp": status.get("timestamp"),
-            "active_collectors": status.get("active_collectors", 0),
-            "total_miners": status.get("total_miners", 0),
-            "system_uptime": status.get("uptime", 0)
+    if not system_manager:
+        return {"status": "unhealthy"}
+
+    status = await system_manager.get_status()
+    rabbitmq_ok = await system_manager.check_rabbitmq_health()
+
+    payload = status.to_dict()
+    payload.update(
+        {
+            "status": "healthy" if rabbitmq_ok else "degraded",
+            "rabbitmq": rabbitmq_ok,
         }
-    return {"status": "unhealthy"}
+    )
+    return payload
 
 # Endpoint para dados em tempo real
 @app.get("/api/v1/realtime")
