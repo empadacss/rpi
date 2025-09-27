@@ -1,0 +1,57 @@
+modbus:
+  host: 192.168.0.111
+  port: 502
+  unit_id: 1
+  timeout: 3.0
+
+abb:
+  host: 192.168.0.108
+  port: 503
+  timeout: 3.0
+
+f2pool:
+  user: your_user
+  coin: bitcoin
+  refresh_interval: 120
+
+ble:
+  enabled: true
+  devices: []
+  scan_interval: 120
+
+database:
+  path: data/centralos.db
+
+logging:
+  directory: logs
+  level: INFO
+
+llm:
+  enabled: false
+  provider: openai
+  model: gpt-4o-mini
+  max_tokens: 256
+  temperature: 0.3
+
+automation:
+  schedule_interval: 30
+  rules:
+    - name: inverter_safety
+      enabled: true
+      parameters:
+        command: sleep
+    - name: humidity_guard
+      enabled: true
+      parameters:
+        threshold: 90
+        speed: 20
+    - name: dew_point_guard
+      enabled: true
+      parameters:
+        diff: 4.0
+        speed: 10
+
+asic:
+  hosts: []
+  ssh_user: root
+  ssh_password:
