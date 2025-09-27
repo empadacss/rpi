@@ -4,12 +4,12 @@
 
 O projeto principal está no diretório `bitcoin_mining_automation/` e fornece um backend em FastAPI, scripts de instalação e monitoramento, além de orquestração via Docker Compose para a automação de uma infraestrutura de mineração de Bitcoin. A arquitetura técnica detalha a integração entre backend, coleta de dados (ABB, ASICs, BLE), notificações e monitoramento com Prometheus/Grafana.【F:bitcoin_mining_automation/docs/TECHNICAL_ARCHITECTURE.md†L1-L88】
 
-Os scripts `install_linux.sh` e `quick_start_linux.sh` tratam da instalação universal em distribuições Linux e incluem suporte explícito a arquiteturas ARM (ARM64/ARMHF).【F:bitcoin_mining_automation/install_linux.sh†L9-L92】【F:bitcoin_mining_automation/quick_start_linux.sh†L1-L88】 Há, ainda, um script específico para Raspberry Pi com Ubuntu (`scripts/install_ubuntu_raspberry_pi.sh`) que automatiza a preparação da plataforma ARM, cobrindo dependências de Modbus, BLE e bibliotecas Python, além de ajustes relacionados ao HashCore Toolkit.【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L1-L214】【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L300-L372】
+Os scripts `install_linux.sh` e `quick_start_linux.sh` tratam da instalação universal em distribuições Linux e incluem suporte explícito a arquiteturas ARM (ARM64/ARMHF).【F:bitcoin_mining_automation/install_linux.sh†L1-L104】【F:bitcoin_mining_automation/quick_start_linux.sh†L1-L88】 Há, ainda, um script específico para Raspberry Pi com Ubuntu (`scripts/install_ubuntu_raspberry_pi.sh`) que automatiza a preparação da plataforma ARM, cobrindo dependências de Modbus, BLE e bibliotecas Python, além de ajustes relacionados ao HashCore Toolkit.【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L1-L230】【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L231-L372】
 
 ## Avaliação de Compatibilidade Ubuntu ARM
 
-1. **Scripts de instalação** – O script dedicado ao Ubuntu em ARM verifica a arquitetura (`aarch64`/`armv7l`), instala dependências via `apt` (incluindo bibliotecas Modbus/BLE) e agora detecta automaticamente se o repositório da NodeSource suporta o codinome do Ubuntu, adotando o pacote nativo quando necessário. Isso confirma suporte direto a Ubuntu ARM a partir da versão 20.04.【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L25-L214】【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L215-L252】
-2. **Backend/Docker** – O backend usa base `python:3.11-slim`, disponível em ARM, e instala bibliotecas Python compatíveis. O `docker-compose.yml` define `LLM_MODE` como desabilitado por padrão e expõe o serviço Ollama atrás de um profile opcional, evitando a tentativa de baixar imagens somente `amd64` em ARM.【F:bitcoin_mining_automation/docker-compose.yml†L7-L118】
+1. **Scripts de instalação** – O instalador dedicado ao Ubuntu ARM remove PPAs problemáticos (como o `deadsnakes` em 25.04), executa `apt update` com tratamento de falhas, instala dependências (incluindo `rsync`) e sincroniza o conteúdo do repositório para `/opt/bitcoin_mining`, garantindo que `docker-compose.yml`, `env.example` e demais artefatos fiquem disponíveis logo após a execução.【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L1-L118】【F:bitcoin_mining_automation/scripts/install_ubuntu_raspberry_pi.sh†L215-L286】
+2. **Backend/Docker** – O backend usa base `python:3.11-slim`, disponível em ARM, e instala bibliotecas Python compatíveis. O `docker-compose.yml` define `LLM_MODE` como desabilitado por padrão e expõe o serviço Ollama atrás de um profile opcional, evitando a tentativa de baixar imagens somente `amd64` em ARM.【F:bitcoin_mining_automation/docker-compose.yml†L1-L118】
 3. **Frontend opcional** – O `docker-compose.yml` coloca o serviço `frontend` sob um profile específico. Assim, a execução padrão (`docker compose up`) funciona sem depender de um diretório inexistente, mantendo a possibilidade de habilitar o componente quando o código estiver disponível.【F:bitcoin_mining_automation/docker-compose.yml†L119-L146】
 4. **HashCore Toolkit** – O backend e os scripts esperam o binário `hashcore` em `/usr/local/bin`. O guia de execução para Ubuntu ARM fornece um pacote `.deb` específico (`hashcore-toolkit_1.0.0_arm64.deb`); se o pacote não estiver disponível para a arquitetura utilizada, deve-se instalar via `pip install hashcore-toolkit`, sujeito à disponibilidade de wheels ARM.【F:bitcoin_mining_automation/GUIA_EXECUCAO_RASPBERRY_PI_UBUNTU.md†L249-L320】【F:bitcoin_mining_automation/backend/core/data_collectors/asic_collector.py†L28-L336】
 5. **Dependências externas** – Os serviços PostgreSQL, Redis, RabbitMQ, Prometheus e Grafana utilizam imagens multi-arquitetura. Em Ubuntu ARM, o `docker compose` puxa as variantes ARM automaticamente, mantendo Ollama e o frontend como opt-in.【F:bitcoin_mining_automation/docker-compose.yml†L19-L146】
@@ -20,11 +20,11 @@ Os scripts `install_linux.sh` e `quick_start_linux.sh` tratam da instalação un
 - ✅ **Ubuntu ARM 20.04+ (incluindo 25.04)** é suportado pelos scripts e documentação do repositório.
 - ⚠️ **Serviço Ollama** continua opcional; habilite apenas se houver suporte à arquitetura e imagem disponível.
 - ⚠️ **Serviço frontend** permanece opcional; forneça o código antes de habilitar o profile correspondente.
-- ⚠️ **HashCore Toolkit** requer verificação manual para garantir a disponibilidade de pacotes/wheels ARM.  
+- ⚠️ **HashCore Toolkit** requer verificação manual para garantir a disponibilidade de pacotes/wheels ARM.
 
 ## Passo a Passo para Instalação no Ubuntu ARM
 
-A sequência abaixo pressupõe um Ubuntu ARM recém-instalado (por exemplo, Raspberry Pi 4 com Ubuntu Server 25.04) e acesso ao terminal com usuário com privilégios `sudo`.
+### Ubuntu 24.04 / 25.04 (Python 3.12+ nativo)
 
 ```bash
 # 1. Atualizar o sistema
@@ -35,9 +35,63 @@ sudo apt install -y curl wget git vim htop tree unzip \
     software-properties-common apt-transport-https ca-certificates gnupg lsb-release \
     build-essential cmake pkg-config python3 python3-dev python3-pip python3-venv \
     python3-tk python3-pil python3-pil.imagetk libmodbus-dev libffi-dev libssl-dev \
-    bluez bluez-tools bluetooth
+    bluez bluez-tools bluetooth rsync
 
-# 3. (Opcional) Configurar Python 3.11+ caso a versão padrão seja antiga
+# 3. Clonar o repositório atualizado (ajuste a URL para o fork/organização corretos)
+export RPI_REPO_URL="https://github.com/<SEU_USUARIO>/rpi.git"
+cd /opt
+sudo git clone "$RPI_REPO_URL"
+sudo chown -R $USER:$USER rpi
+cd rpi/bitcoin_mining_automation
+
+# 4. Executar o instalador dedicado para Ubuntu ARM (sincroniza o código para /opt/bitcoin_mining)
+chmod +x scripts/install_ubuntu_raspberry_pi.sh
+sudo scripts/install_ubuntu_raspberry_pi.sh
+
+# 5. Configurar variáveis de ambiente
+cd /opt/bitcoin_mining
+cp .env.example .env
+nano .env
+
+# 6. Ajustar configuração de dispositivos
+mkdir -p config
+nano config/devices.yaml
+
+# 7. Instalar e habilitar Docker (necessário para stack completa)
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+newgrp docker
+sudo systemctl enable docker
+
+# 8. Instalar Docker Compose plugin
+sudo apt install -y docker-compose-plugin
+
+# 9. Subir apenas os serviços suportados em ARM
+docker compose up -d postgres redis rabbitmq prometheus grafana app
+
+# 10. (Opcional) Habilitar serviços extras quando a arquitetura permitir
+# docker compose --profile ollama up -d    # Requer imagem com suporte ARM
+# docker compose --profile frontend up -d  # Disponível após adicionar o código do frontend
+
+# 11. Verificar status e logs
+docker compose ps
+docker compose logs -f app
+```
+
+### Ubuntu 20.04 / 22.04 (necessita Python 3.11 via PPA)
+
+```bash
+# 1. Atualizar o sistema
+sudo apt update && sudo apt upgrade -y
+
+# 2. Instalar dependências básicas
+sudo apt install -y curl wget git vim htop tree unzip \
+    software-properties-common apt-transport-https ca-certificates gnupg lsb-release \
+    build-essential cmake pkg-config python3 python3-dev python3-pip python3-venv \
+    python3-tk python3-pil python3-pil.imagetk libmodbus-dev libffi-dev libssl-dev \
+    bluez bluez-tools bluetooth rsync
+
+# 3. Habilitar o PPA deadsnakes e instalar Python 3.11
 sudo add-apt-repository ppa:deadsnakes/ppa -y
 sudo apt update
 sudo apt install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
@@ -50,48 +104,37 @@ sudo git clone "$RPI_REPO_URL"
 sudo chown -R $USER:$USER rpi
 cd rpi/bitcoin_mining_automation
 
-# 5. (Opcional) Trocar para a branch desejada (ex.: work/main)
-# git checkout work
-
-# 6. Executar o instalador dedicado para Ubuntu ARM
+# 5. Executar o instalador dedicado para Ubuntu ARM (sincroniza o código para /opt/bitcoin_mining)
 chmod +x scripts/install_ubuntu_raspberry_pi.sh
 sudo scripts/install_ubuntu_raspberry_pi.sh
 
-# 7. Copiar variáveis de ambiente e configurar
+# 6. Configurar variáveis de ambiente
 cd /opt/bitcoin_mining
 cp .env.example .env
 nano .env
 
-# 8. Ajustar configuração de dispositivos
+# 7. Ajustar configuração de dispositivos
 mkdir -p config
 nano config/devices.yaml
 
-# 9. (Opcional) Instalar HashCore Toolkit para ARM64
-wget https://releases.hashcore.io/hashcore-toolkit_1.0.0_arm64.deb
-sudo dpkg -i hashcore-toolkit_1.0.0_arm64.deb || sudo apt -f install -y
-# ou, se indisponível:
-# pip install hashcore-toolkit
-
-# 10. Instalar e habilitar Docker (necessário para stack completa)
+# 8. Instalar e habilitar Docker (necessário para stack completa)
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker $USER
 newgrp docker
 sudo systemctl enable docker
 
-# 11. Instalar Docker Compose plugin
+# 9. Instalar Docker Compose plugin
 sudo apt install -y docker-compose-plugin
 
-# 12. Subir apenas os serviços suportados em ARM
+# 10. Subir serviços essenciais
 docker compose up -d postgres redis rabbitmq prometheus grafana app
 
-# 13. (Opcional) Habilitar serviços extras quando a arquitetura permitir
+# 11. (Opcional) Habilitar serviços extras quando a arquitetura permitir
 # docker compose --profile ollama up -d    # Requer imagem com suporte ARM
 # docker compose --profile frontend up -d  # Disponível após adicionar o código do frontend
 
-# 14. Verificar status
+# 12. Verificar status e logs
 docker compose ps
-
-# 15. Acompanhar logs do backend
 docker compose logs -f app
 ```
 
@@ -99,7 +142,6 @@ docker compose logs -f app
 
 ## Recomendações Pós-Instalação
 
-- Configure o firewall para liberar as portas 8000 (API), 3001 (Grafana), 5432 (PostgreSQL) e 6379 (Redis) conforme necessário.【F:bitcoin_mining_automation/GUIA_EXECUCAO_RASPBERRY_PI_UBUNTU.md†L199-L288】  
-- Utilize os scripts de diagnóstico e monitoramento (`diagnose.sh`, `monitor.sh`) para validar o ambiente após a instalação.【F:bitcoin_mining_automation/GUIA_EXECUCAO_RASPBERRY_PI_UBUNTU.md†L129-L197】  
+- Configure o firewall para liberar as portas 8000 (API), 3001 (Grafana), 5432 (PostgreSQL) e 6379 (Redis) conforme necessário.【F:bitcoin_mining_automation/GUIA_EXECUCAO_RASPBERRY_PI_UBUNTU.md†L199-L288】
+- Utilize os scripts de diagnóstico e monitoramento (`diagnose.sh`, `monitor.sh`) para validar o ambiente após a instalação.【F:bitcoin_mining_automation/GUIA_EXECUCAO_RASPBERRY_PI_UBUNTU.md†L129-L197】
 - Se optar pelo modo sem Docker, ajuste o serviço `bitcoin-mining-python.service` conforme indicado na documentação para inicialização automática.【F:bitcoin_mining_automation/GUIA_EXECUCAO_RASPBERRY_PI_UBUNTU.md†L97-L197】
-

@@ -181,20 +181,30 @@ install_basic_dependencies() {
 # Instalar Python 3.11+ se necessário
 install_python() {
     log "Verificando versão do Python..."
-    
+
     PYTHON_VERSION=$(python3 --version 2>&1 | cut -d' ' -f2 | cut -d'.' -f1,2)
     PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d'.' -f1)
     PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f2)
-    
-    if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 8 ]); then
+
+    if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 11 ]); then
         log "Instalando Python 3.11+..."
-        
+
         case $DISTRO in
             ubuntu|debian)
-                add-apt-repository ppa:deadsnakes/ppa -y
-                apt-get update
-                apt-get install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
-                update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+                UBUNTU_MAJOR=${VERSION%%.*}
+                UBUNTU_MINOR=${VERSION#*.}
+                UBUNTU_MINOR=${UBUNTU_MINOR%%.*}
+                if [ "$DISTRO" = "ubuntu" ] && [ "$UBUNTU_MAJOR" -ge 24 ]; then
+                    log "Ubuntu ${VERSION} detectado - utilizando Python nativo do repositório (3.12+)"
+                    apt-get install -y python3 python3-dev python3-venv python3-pip
+                else
+                    log "Habilitando PPA deadsnakes para obter Python 3.11 em ${DISTRO^} ${VERSION}"
+                    apt-get install -y software-properties-common
+                    add-apt-repository ppa:deadsnakes/ppa -y
+                    apt-get update
+                    apt-get install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
+                    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+                fi
                 ;;
             centos|rhel|fedora)
                 $PKG_MGR install -y python3.11 python3.11-devel

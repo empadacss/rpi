@@ -19,6 +19,62 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+remove_broken_deadsnakes() {
+    local removed=0
+    if ls /etc/apt/sources.list.d/deadsnakes-ubuntu-ppa* >/dev/null 2>&1; then
+        warn "Removendo entradas antigas do PPA deadsnakes que causam erro 404"
+        rm -f /etc/apt/sources.list.d/deadsnakes-ubuntu-ppa* || true
+        removed=1
+    fi
+    if ls /etc/apt/sources.list.d/*deadsnakes* >/dev/null 2>&1; then
+        warn "Removendo entradas residuais do PPA deadsnakes"
+        rm -f /etc/apt/sources.list.d/*deadsnakes* || true
+        removed=1
+    fi
+    if [ "$removed" -eq 1 ] && command -v add-apt-repository >/dev/null 2>&1; then
+        add-apt-repository --remove ppa:deadsnakes/ppa -y >/dev/null 2>&1 || true
+    fi
+}
+
+safe_apt_update() {
+    remove_broken_deadsnakes
+    if apt-get update; then
+        return 0
+    fi
+
+    warn "apt-get update falhou na primeira tentativa. Tentando novamente após limpar PPAs problemáticos"
+    remove_broken_deadsnakes
+    apt-get update || warn "apt-get update ainda retornou erro; verifique sua conexão ou listas de repositório"
+}
+
+sync_repository_contents() {
+    if [ ! -d "$PROJECT_ROOT" ]; then
+        warn "Não foi possível determinar o diretório do repositório para sincronização"
+        return
+    fi
+
+    if ! command -v rsync >/dev/null 2>&1; then
+        warn "rsync não encontrado; pulando cópia automática do repositório"
+        return
+    fi
+
+    log "Sincronizando arquivos do repositório para /opt/bitcoin_mining"
+    rsync -a \
+        --exclude '.git/' \
+        --exclude '.github/' \
+        --exclude '.venv/' \
+        --exclude 'node_modules/' \
+        --exclude '__pycache__/' \
+        --exclude '*.pyc' \
+        --exclude '*.log' \
+        --exclude '.env' \
+        "${PROJECT_ROOT}/" \
+        /opt/bitcoin_mining/
+}
+
 # Função para log
 log() {
     echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] $1${NC}"
@@ -70,7 +126,7 @@ log "Usuário alvo para instalação: $TARGET_USER"
 
 # Atualizar sistema
 log "Atualizando sistema Ubuntu..."
-apt-get update
+safe_apt_update
 apt-get upgrade -y
 
 # Instalar dependências básicas
@@ -83,6 +139,7 @@ apt-get install -y \
     htop \
     tree \
     unzip \
+    rsync \
     software-properties-common \
     apt-transport-https \
     ca-certificates \
@@ -293,6 +350,9 @@ mkdir -p /opt/bitcoin_mining/backup
 mkdir -p /opt/bitcoin_mining/config
 mkdir -p /opt/bitcoin_mining/reports
 mkdir -p /opt/bitcoin_mining/logs_csv
+
+# Copiar arquivos do repositório
+sync_repository_contents
 
 # Configurar permissões
 chown -R "$TARGET_USER":"$TARGET_USER" /opt/bitcoin_mining
@@ -717,8 +777,11 @@ log "Configurando backup automático..."
 (crontab -l 2>/dev/null; echo "0 4 * * 0 find /opt/bitcoin_mining/logs_csv -name '*.csv' -mtime +30 -delete") | crontab -
 
 # Criar arquivo .env de exemplo aprimorado
-log "Criando arquivo .env de exemplo aprimorado..."
-cat > /opt/bitcoin_mining/.env.example << 'EOF'
+if [ -f /opt/bitcoin_mining/.env.example ]; then
+    log ".env.example já existe em /opt/bitcoin_mining; mantendo arquivo atual"
+else
+    log "Criando arquivo .env de exemplo aprimorado..."
+    cat > /opt/bitcoin_mining/.env.example << 'EOF'
 # Configurações do Sistema de Automação para Mineração de Bitcoin
 # Configurado automaticamente para Raspberry Pi com Ubuntu
 
@@ -809,6 +872,7 @@ SWAP_SIZE=2G
 DISPLAY=:0
 XAUTHORITY=/home/$USER/.Xauthority
 EOF
+fi
 
 # Criar README aprimorado para o usuário
 log "Criando documentação aprimorada..."
