@@ -20,10 +20,10 @@
 
 #### 1.1 Instalar Ubuntu
 1. Baixe a imagem do Ubuntu para Raspberry Pi:
+   - [Ubuntu 25.04 (Lunar Lobster)](https://cdimage.ubuntu.com/releases/25.04/release/)
    - [Ubuntu 24.04 LTS](https://ubuntu.com/download/raspberry-pi)
    - [Ubuntu 22.04 LTS](https://ubuntu.com/download/raspberry-pi)
    - [Ubuntu 20.04 LTS](https://ubuntu.com/download/raspberry-pi)
-   - [Ubuntu 25.x (Daily Builds)](https://cdimage.ubuntu.com/releases/)
 
 2. Grave a imagem no microSD usando:
    - **Raspberry Pi Imager** (recomendado)
@@ -59,26 +59,31 @@ sudo reboot
 
 ### 2. Instalar o Sistema de Mineração
 
-#### 2.1 Baixar o Script de Instalação
+#### 2.1 Obter o repositório atualizado
 ```bash
-# Criar diretório temporário
-mkdir -p ~/temp
-cd ~/temp
+# Definir a URL do repositório (ajuste para o seu fork/organização)
+export RPI_REPO_URL="https://github.com/<SEU_USUARIO>/rpi.git"
 
-# Baixar script de instalação
-wget https://raw.githubusercontent.com/seu-usuario/bitcoin-mining-automation/main/scripts/install_ubuntu_raspberry_pi.sh
+# Clonar o projeto em /opt (requer sudo)
+cd /opt
+sudo git clone "$RPI_REPO_URL"
+sudo chown -R $USER:$USER rpi
 
-# Tornar executável
-chmod +x install_ubuntu_raspberry_pi.sh
+# Acessar o diretório do projeto
+cd rpi/bitcoin_mining_automation
+
+# (Opcional) Selecionar a branch desejada (ex.: work/main)
+# git checkout work
 ```
 
-#### 2.2 Executar Instalação
+#### 2.2 Executar o instalador para Ubuntu ARM
 ```bash
-# Executar como root
-sudo ./install_ubuntu_raspberry_pi.sh
+# Dar permissão de execução e rodar o instalador dedicado
+chmod +x scripts/install_ubuntu_raspberry_pi.sh
+sudo scripts/install_ubuntu_raspberry_pi.sh
 ```
 
-**⏱️ Tempo estimado**: 15-30 minutos
+**⏱️ Tempo estimado**: 15-30 minutos (inclui fallback automático para Node.js em caso de Ubuntu 25.04)
 
 #### 2.3 Verificar Instalação
 ```bash
@@ -142,11 +147,15 @@ asics:
 # Navegar para o diretório
 cd /opt/bitcoin_mining
 
-# Iniciar com Docker
-docker-compose up -d
+# Subir apenas os serviços com suporte garantido em ARM
+docker compose up -d postgres redis rabbitmq prometheus grafana app
 
 # Verificar status
-docker-compose ps
+docker compose ps
+
+# (Opcional) Habilitar serviços adicionais quando disponíveis para ARM
+# docker compose --profile ollama up -d    # Requer imagem com suporte ARM
+# docker compose --profile frontend up -d  # Disponível após adicionar o código do frontend
 ```
 
 #### 4.2 Opção B: Python Direto

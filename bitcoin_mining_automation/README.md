@@ -57,7 +57,7 @@ nano config/devices.yaml
 ### 3. Iniciar Sistema
 ```bash
 # Opção A: Docker (Recomendado)
-docker-compose up -d
+docker compose up -d
 
 # Opção B: Python direto
 source .venv/bin/activate
@@ -65,6 +65,15 @@ python main.py
 
 # Opção C: Serviço do sistema
 sudo systemctl start bitcoin-mining-python.service
+```
+
+```bash
+# Verificar status
+docker compose ps
+
+# (Opcional) Habilitar serviços adicionais
+# docker compose --profile ollama up -d    # Requer imagem amd64
+# docker compose --profile frontend up -d  # Disponível após adicionar o código do frontend
 ```
 
 ## 🔧 Comandos Úteis
@@ -91,7 +100,7 @@ python scripts/test_raspberry_pi.py  # Testar sistema (Raspberry Pi)
 ## 🌐 Interfaces Disponíveis
 
 - **API**: http://seu-ip:8000
-- **Frontend**: http://seu-ip:3000
+- **Frontend** (opcional): http://seu-ip:3000
 - **Grafana**: http://seu-ip:3001
 - **Prometheus**: http://seu-ip:9090
 - **RabbitMQ**: http://seu-ip:15672
@@ -106,6 +115,9 @@ python scripts/test_raspberry_pi.py  # Testar sistema (Raspberry Pi)
 - [install_linux.sh](install_linux.sh) - Instalação universal para Linux
 - [scripts/install_ubuntu_raspberry_pi.sh](scripts/install_ubuntu_raspberry_pi.sh) - Raspberry Pi com Ubuntu
 - [scripts/install_raspberry_pi_enhanced.sh](scripts/install_raspberry_pi_enhanced.sh) - Raspberry Pi com Raspbian
+
+### Dependências Opcionais
+- [backend/requirements-ml.txt](backend/requirements-ml.txt) - Pacotes extras para pipelines de IA locais
 
 ### Scripts de Inicialização
 - [quick_start_linux.sh](quick_start_linux.sh) - Inicialização rápida Linux

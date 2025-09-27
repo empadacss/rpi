@@ -1,0 +1,9 @@
+# Requisitos opcionais para recursos de IA avançados
+# Instale apenas se precisar executar modelos locais ou pipelines que dependem de PyTorch/Transformers.
+
+# Torch possui wheels específicos por arquitetura. Consulte https://pytorch.org/get-started/locally/
+# e ajuste o --index-url conforme a plataforma (por exemplo, aarch64 CPU somente).
+# Exemplo para ARM64 CPU: pip install --index-url https://download.pytorch.org/whl/cpu torch==2.1.1
+
+torch==2.1.1
+transformers==4.36.2
